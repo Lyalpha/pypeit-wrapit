@@ -386,9 +386,10 @@ def run_pypeit_setup_one_config(
         extension,
         "-c",
         "A",
+        "-o",
     ]
     if output_path is not None:
-        args.extend(["-o", str(output_path)])
+        args.extend(["-d", str(output_path)])
     return run_command("pypeit_setup", args, cwd=cwd, timeout=timeout)
 
 
