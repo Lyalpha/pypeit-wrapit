@@ -1,14 +1,13 @@
-import shutil
-import subprocess
-import re
 from datetime import datetime
-from importlib.resources import files, as_file
+from importlib.resources import as_file, files
 from pathlib import Path
 from typing import Sequence
+import re
+import shutil
+import subprocess
 
-import numpy as np
 from astropy.io import fits
-
+import numpy as np
 
 PACKAGE = "pypeit_wrapit"
 

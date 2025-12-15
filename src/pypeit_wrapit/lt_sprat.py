@@ -1,8 +1,8 @@
-import shutil
 from datetime import datetime
 from pathlib import Path
 from typing import Sequence
 import os
+import shutil
 
 from astropy.io import fits
 from astropy.time import Time
@@ -17,10 +17,10 @@ from pypeit_wrapit.common import (
     run_pypeit,
     run_pypeit_flux_calib,
     run_pypeit_setup_one_config,
+    stack_spectra,
     symlink_into_dir,
     unpack_spec1d_fits,
     write_flux_file,
-    stack_spectra,
 )
 
 SPECTROGRAPH = "lt_sprat"

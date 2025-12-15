@@ -9,7 +9,7 @@ help:
 	@echo "  make publish            Publish package to Pypi"
 
 check:
-	uv run ruff check $$(git diff --name-only --cached -- '*.py')
+	uv run ruff check $$(git diff --name-only --cached -- '*.py') --fix
 
 format:
 	uv run ruff format $$(git diff --name-only --cached -- '*.py')

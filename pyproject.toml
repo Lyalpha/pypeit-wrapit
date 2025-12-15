@@ -34,6 +34,16 @@ pypeit-wrapit = "pypeit_wrapit.cli:cli"
 
 [tool.ruff]
 target-version = "py312"
+line-length = 88
+
+[tool.ruff.lint]
+select = ["I"]  # Enable isort rules
+
+[tool.ruff.lint.isort]
+combine-as-imports = true
+known-first-party = ["pypeit_wrapit"]
+from-first = true
+
 
 [tool.hatch.metadata]
 allow-direct-references = true

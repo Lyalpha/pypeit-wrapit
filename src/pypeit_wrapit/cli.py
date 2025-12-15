@@ -1,11 +1,11 @@
 # python
+from pathlib import Path
+from typing import List, Sequence, Set
 import glob
 import sys
-from pathlib import Path
-from typing import Sequence, List, Set
 
-import rich_click as click
 from loguru import logger
+import rich_click as click
 
 
 def _collect_input_files(input_files: str) -> List[str]:
