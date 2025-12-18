@@ -1,4 +1,3 @@
-# python
 from pathlib import Path
 from typing import List, Sequence, Set
 import glob
