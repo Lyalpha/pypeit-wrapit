@@ -168,7 +168,7 @@ def unpack_spec1d_fits(
     write_ascii_to: Path | None = None,
 ) -> tuple[np.ndarray, fits.header.Header]:
     """
-    Returns a Nx3 array with columns: wavelength, flux, sigma and the header of the reduced and
+    Returns an (N, 3) array with columns: wavelength, flux, sigma and the header of the reduced and
     flux calibrated spectrum in <spec1d_file>.
     """
     from pypeit.specobjs import SpecObjs
@@ -187,14 +187,19 @@ def unpack_spec1d_fits(
         if lam_lim_upp is not None:
             wavelength_mask &= wavelength <= lam_lim_upp
 
-        wavelength = wavelength[wavelength_mask]
-        # PypeIt fluxes are in units of 1e-17 erg/s/cm2/Ang
-        # https://pypeit.readthedocs.io/en/latest/fluxing.html
-        flux = flux[wavelength_mask] * 1e-17  # convert to erg/s/cm2/Ang
-        std = std[wavelength_mask] * 1e-17  # convert to erg/s/cm2/Ang
+        if not np.any(wavelength_mask):
+            raise ValueError(
+                "No data points within requested wavelength limits; check input spectrum and limits"
+            )
 
-        if wavelength.size == 0:
-            raise ValueError("No data within the requested wavelength limits")
+        wavelength = wavelength[wavelength_mask]
+        flux = flux[wavelength_mask]
+        std = std[wavelength_mask]
+
+    # PypeIt fluxes are in units of 1e-17 erg/s/cm2/Ang
+    # https://pypeit.readthedocs.io/en/latest/fluxing.html
+    flux *= 1e-17  # convert to erg/s/cm2/Ang
+    std *= 1e-17  # convert to erg/s/cm2/Ang
 
     spec_array = np.column_stack((wavelength, flux, std))
 
