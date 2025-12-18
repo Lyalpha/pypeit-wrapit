@@ -227,94 +227,102 @@ def stack_spectra(
     norm_lim_upp: float = 25000.0,
     write_ascii_to: Path | None = None,
 ) -> np.ndarray:
-    """
-    Stack a sequence of spectra arrays (each with 3 columns: lambda, flux, std) onto a regular grid.
+    if not spec_arrays:
+        raise ValueError("`spec_arrays` is empty")
 
-    Returns an (M ,3)  array with columns (wavelength, flux, std).
-    """
-
-    lam_min = float(np.max([sp[0][0] for sp in spec_arrays]))
-    lam_max = float(np.min([sp[0][-1] for sp in spec_arrays]))
+    lam_ranges = [(np.min(sp[:, 0]), np.max(sp[:, 0])) for sp in spec_arrays]
+    lam_min = max(lo for lo, _ in lam_ranges)
+    lam_max = min(hi for _, hi in lam_ranges)
     if lam_min >= lam_max:
-        raise ValueError("No overlap between spectra within `norm_lims`")
-
-    # normalise each spectrum by mean flux in norm_lims region, further cropped by wavel_min/max
-    norms = []
-    for sp in spec_arrays:
-        mask = (sp[0] > max(norm_lim_low, lam_min)) & (
-            sp[0] < min(norm_lim_upp, lam_max)
+        raise ValueError(
+            f"No overlap of wavelength ranges between spectra (found {lam_min} to {lam_max})"
         )
+
+    # Normalize spectra
+    spec_norm = []
+    norms = []
+    norm_low = max(norm_lim_low, lam_min)
+    norm_high = min(norm_lim_upp, lam_max)
+
+    for sp in spec_arrays:
+        sp_norm = np.array(sp, copy=True, dtype=float)
+        mask = (sp_norm[:, 0] >= norm_low) & (sp_norm[:, 0] <= norm_high)
         if not np.any(mask):
             raise ValueError(
                 "No data points within normalization limits; check input spectra and overlap region"
             )
-        vals = sp[1][mask]
-        mean_val = np.nanmean(vals)
+        mean_val = np.nanmean(sp_norm[:, 1][mask])
         if not np.isfinite(mean_val) or mean_val == 0:
             raise ValueError(
                 "Unable to compute normalization; check input spectra and overlap region"
             )
+        sp_norm[:, 1:] /= mean_val
         norms.append(mean_val)
-        # normalise the flux and sigma columns
-        sp[1] = sp[1] / mean_val
-        sp[2] = sp[2] / mean_val
+        spec_norm.append(sp_norm)
 
-    regular_grid = np.arange(lam_min, lam_max + bin_size, bin_size)
+    num_bins = int(np.floor((lam_max - lam_min) / bin_size)) + 1
 
-    # accumulate per-bin lists
-    lam_bins = [[] for _ in range(len(regular_grid))]
-    flux_bins = [[] for _ in range(len(regular_grid))]
-    std_bins = [[] for _ in range(len(regular_grid))]
+    lam_all = np.concatenate([sp[:, 0] for sp in spec_norm])
+    flux_all = np.concatenate([sp[:, 1] for sp in spec_norm])
+    std_all = np.concatenate([sp[:, 2] for sp in spec_norm])
 
-    for sp in spec_arrays:
-        inds = np.digitize(sp[0], bins=regular_grid)
-        for bin_idx in range(1, len(regular_grid) + 1):
-            sel = inds == bin_idx
-            if not np.any(sel):
-                continue
-            lam_bins[bin_idx - 1].extend(sp[0][sel].tolist())
-            flux_bins[bin_idx - 1].extend(sp[1][sel].tolist())
-            std_bins[bin_idx - 1].extend(sp[2][sel].tolist())
+    # Bin assignment (explicit masking, no clipping)
+    bin_idx = ((lam_all - lam_min) // bin_size).astype(int)
+    bin_valid = (bin_idx >= 0) & (bin_idx < num_bins)
+    lam_all = lam_all[bin_valid]
+    flux_all = flux_all[bin_valid]
+    std_all = std_all[bin_valid]
+    bin_idx = bin_idx[bin_valid]
 
-    # compute weighted means
-    lam_new = np.full(len(regular_grid), np.nan, dtype=float)
-    flux_new = np.full(len(regular_grid), np.nan, dtype=float)
-    std_new = np.full(len(regular_grid), np.nan, dtype=float)
+    # Prepare output arrays
+    lam_new = np.full(num_bins, np.nan, dtype=float)
+    flux_new = np.full(num_bins, np.nan, dtype=float)
+    std_new = np.full(num_bins, np.nan, dtype=float)
 
-    for i in range(len(regular_grid)):
-        lam_temp = np.asarray(lam_bins[i])
-        flux_temp = np.asarray(flux_bins[i])
-        std_temp = np.asarray(std_bins[i])
+    # Inverse-variance weighted wavelength and flux
+    # Shared valid mask
+    ivar_valid = np.isfinite(flux_all) & np.isfinite(std_all) & (std_all > 0)
+    idx = bin_idx[ivar_valid]
+    inv_var = std_all[ivar_valid] ** -2
+    # Shared inverse-variance sum
+    ivar_sum = np.bincount(idx, weights=inv_var, minlength=num_bins)
+    pos = ivar_sum > 0
+    # Wavelength: inverse-variance weighted mean
+    lam_weighted = np.bincount(
+        idx, weights=lam_all[ivar_valid] * inv_var, minlength=num_bins
+    )
+    lam_new[pos] = lam_weighted[pos] / ivar_sum[pos]
+    # Flux: inverse-variance weighted mean
+    flux_weighted = np.bincount(
+        idx, weights=flux_all[ivar_valid] * inv_var, minlength=num_bins
+    )
+    flux_new[pos] = flux_weighted[pos] / ivar_sum[pos]
+    # Std: summed inverse variance
+    std_new[pos] = np.sqrt(1.0 / ivar_sum[pos])
 
-        if lam_temp.size == 0:
-            continue
-
-        lam_new[i] = np.nanmean(lam_temp)
-
-        # filter finite and positive std
-        valid = np.isfinite(flux_temp) & np.isfinite(std_temp) & (std_temp > 0)
-        if not np.any(valid):
-            continue
-
-        f = flux_temp[valid]
-        s = std_temp[valid]
-        inv_var = 1.0 / (s * s)
-        sum_inv_var = np.sum(inv_var)
-        flux_new[i] = np.sum(f * inv_var) / sum_inv_var
-        std_new[i] = np.sqrt(1.0 / sum_inv_var)
-
-    # drop empty bins
-    good = np.isfinite(lam_new)
+    # Drop bins without valid flux
+    good = np.isfinite(lam_new) & np.isfinite(flux_new)
     lam_new = lam_new[good]
     flux_new = flux_new[good]
     std_new = std_new[good]
 
-    # restore average scaling
-    mean_norm = np.nanmean(norms)
-    flux_new = flux_new * mean_norm
-    std_new = std_new * mean_norm
+    # Restore flux scale using an inverse-variance weighted
+    # throughput estimate
+    a = np.asarray(norms)
+    weights = []
+    for sp_norm in spec_norm:
+        mask = (sp_norm[:, 0] >= norm_low) & (sp_norm[:, 0] <= norm_high)
+        if not np.any(mask):
+            weights.append(0.0)
+            continue
+        weights.append(np.nansum(1.0 / sp_norm[:, 2][mask] ** 2))
 
-    stacked = np.vstack([lam_new, flux_new, std_new])
+    anchor_scale = np.average(a, weights=np.asarray(weights))
+
+    flux_new *= anchor_scale
+    std_new *= anchor_scale
+
+    stacked = np.vstack([lam_new, flux_new, std_new]).T
 
     if write_ascii_to is not None:
         write_path = Path(write_ascii_to)

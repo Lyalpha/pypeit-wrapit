@@ -169,10 +169,15 @@ def run_object(
             final_dir_path / f"{target}_LTSPRAT_{dispname}_{mean_date_str}.dat"
         )
 
-        stack_spectra(
+        stacked_spectrum = stack_spectra(
             spec_arrays=spec1d_arrays,
             bin_size=stacked_bin_size,
             write_ascii_to=stacked_write_path,
+        )
+        lam_low = stacked_spectrum[0, 0]
+        lam_upp = stacked_spectrum[0, -1]
+        logger.debug(
+            f"Stacked spectrum wavelength range: {lam_low:.1f}-{lam_upp:.1f} Å"
         )
         logger.info(f"Wrote stacked spectrum to: {stacked_write_path}")
 
