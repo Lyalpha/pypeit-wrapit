@@ -1,10 +1,10 @@
 # pypeit-wrapit
 
-Lightweight wrappers to run **[PypeIt](https://pypeit.readthedocs.io/en/stable/)** reductions in a single step. 
+Lightweight wrappers to run **[PypeIt](https://pypeit.readthedocs.io/en/stable/)** reductions in a single step.
 
 Supports the **Liverpool Telescope (LT) SPRAT** spectrograph for now.
 
-`pypeit-wrapit` implements a small CLI (`pypeit-wrapit lt-sprat`) that prepares raw inputs, runs the relevant 
+`pypeit-wrapit` implements a small CLI (`pypeit-wrapit lt-sprat`) that prepares raw inputs, runs the relevant
 `PypeIt` pipelines, performs flux calibration, optionally stacks spectra, and writes final ASCII spectral products.
 
 ---
@@ -44,8 +44,8 @@ pypeit-wrapit lt-sprat INPUT_FILES OUTPUT_DIR [OPTIONS]
 
 ### Arguments
 
-- **INPUT_FILES**  
-  One or more input spectra FITS files to process.  
+- **INPUT_FILES**
+  One or more input spectra FITS files to process.
   You may pass:
   - One or more file paths
   or
@@ -53,29 +53,29 @@ pypeit-wrapit lt-sprat INPUT_FILES OUTPUT_DIR [OPTIONS]
   This should include the science frames and any necessary calibration frames (e.g. arcs)
   for **a single target and observational setup**.
 
-- **OUTPUT_DIR**  
+- **OUTPUT_DIR**
   Output directory for intermediate and final reduced products.
 
 ---
 
 ### Options
 
-- `--sensitivity-file`  
-  Path to sensitivity file.  
+- `--sensitivity-file`
+  Path to sensitivity file.
   Default: packaged sensitivity files precomputed with `PypeIt` for SPRAT .
 
-- `--stacked-bin-size`  
-  Bin size in angstroms for the stacked spectrum.  
+- `--stacked-bin-size`
+  Bin size in angstroms for the stacked spectrum.
   Default: `5.0`
 
-- `--lam-lim-low`, `--lam-lim-upp`  
+- `--lam-lim-low`, `--lam-lim-upp`
   Wavelength limits in angstroms for output spectra.
   Defaults: `4000.0`, `9000.0`
 
-- `--overwrite`  
+- `--overwrite`
   Removes contents of `OUTPUT_DIR` if it is not empty (interactive confirmation).
 
-- `--cleanup`  
+- `--cleanup`
   Removes intermediate `raw` and `pypeit_products` directories within `OUTPUT_DIR` after completion.
 
 ---
@@ -117,7 +117,7 @@ pypeit-wrapit lt-sprat data/*.fits /tmp/outdir \
   - Resampled onto a regular wavelength grid
   - Stacked using inverse-variance weighting
 
-The stacked spectrum has its observation time updated and output as a single stacked spectrum file 
+The stacked spectrum has its observation time updated and output as a single stacked spectrum file
 (see below).
 
 ### Output Files
@@ -163,11 +163,11 @@ with their stacked spectrum written following the same convention as the single 
 
 Key files in the repository:
 
-- **CLI entry point**  
+- **CLI entry point**
   `src/pypeit_wrapit/cli.py`
 
-- **LT SPRAT workflow**  
+- **LT SPRAT workflow**
   `src/pypeit_wrapit/lt_sprat.py`
 
-- **Common utilities** (flux writing, FITS unpacking, stacking)  
+- **Common utilities** (flux writing, FITS unpacking, stacking)
   `src/pypeit_wrapit/common.py`
