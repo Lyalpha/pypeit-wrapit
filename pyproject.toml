@@ -23,6 +23,7 @@ dev = [
     "build",
     "pre-commit",
     "ipython",
+    "pytest",
 ]
 
 [build-system]
