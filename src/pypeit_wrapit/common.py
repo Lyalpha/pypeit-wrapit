@@ -394,8 +394,6 @@ def run_pypeit_setup_one_config(
         str(raw_dir),
         "-s",
         spectrograph,
-        "-e",
-        extension,
         "-c",
         "A",
         "-o",
