@@ -11,11 +11,9 @@ Supports the **Liverpool Telescope (LT) SPRAT** spectrograph for now.
 
 ## Installation
 
-Clone the repository and install via `pip`:
+Install the repository via `pip`:
 ```bash
-git clone https://github.com/Lyalpha/pypeit-wrapit.git
-cd pypeit-wrapit
-pip install .
+pip install git+https://github.com/Lyalpha/pypeit-wrapit.git
 ```
 
 ---
