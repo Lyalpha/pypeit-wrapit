@@ -154,5 +154,56 @@ def run_lt_sprat(
     )
 
 
+# Helpful commands agnostic of specific instruments
+@cli.command("show-spectrum")
+@click.argument(
+    "spectrum_file",
+    type=click.Path(file_okay=True, dir_okay=False, resolve_path=True, exists=True),
+    required=True,
+    help="ASCII input spectrum file with 3 columns: wavelength, flux, std.",
+)
+@click.option(
+    "-t",
+    "--title",
+    type=str,
+    default=None,
+    help="Optional plot title. Defaults to the filename if not provided.",
+)
+@click.option(
+    "-o",
+    "--output-file",
+    type=click.Path(
+        file_okay=True,
+        dir_okay=False,
+        resolve_path=True,
+        writable=True,
+        exists=False,
+    ),
+    default=None,
+    help="Output file to save the plot. If not provided, it is only shown interactively.",
+)
+@click.option(
+    "-n",
+    "--no-show",
+    is_flag=True,
+    type=bool,
+    default=False,
+    help="Suppress showing the interative figure.",
+)
+def show_spectrum(
+    spectrum_file: str, title: str | None, output_file: str | None, no_show: bool
+) -> None:
+    """Plot a 1D spectrum with shaded ±std region."""
+    if output_file is None and no_show:
+        click.echo("No ouput-file provided and no-show chosen. Nothing to do!")
+        sys.exit(0)
+    click.echo(f"Plotting spectrum from file: {spectrum_file}")
+    if output_file:
+        click.echo(f"Output will be saved to: {output_file}")
+    from pypeit_wrapit.visualise import show_spectrum
+
+    show_spectrum(spectrum_file, title, output_file, no_show)
+
+
 if __name__ == "__main__":
     cli()

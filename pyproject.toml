@@ -9,7 +9,8 @@ dependencies = [
     "loguru",
     "numpy",
     "pypeit @ git+https://github.com/mpursiai/PypeIt.git@newrelease",
-    "rich-click"
+    "rich-click",
+    "scienceplots",
 ]
 
 [project.urls]
@@ -44,7 +45,6 @@ select = ["I"]  # Enable isort rules
 combine-as-imports = true
 known-first-party = ["pypeit_wrapit"]
 from-first = true
-
 
 [tool.hatch.metadata]
 allow-direct-references = true
