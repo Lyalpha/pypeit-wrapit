@@ -129,6 +129,33 @@ def get_spec1d_files(reduction_dir: Path) -> list[Path]:
     return sorted(spec1d_files, key=lambda p: p.name)
 
 
+def write_spectrum_ascii(
+    path: Path,
+    spec_array: np.ndarray,
+    hdr: fits.header.Header,
+) -> None:
+    """Write a 3‑column spectrum with FITS header metadata to ASCII."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    hdr_lines: list[str] = []
+    for card in hdr.cards:
+        if card.keyword not in ("HISTORY", "COMMENT", ""):
+            hdr_lines.append(
+                f"{card.keyword} = {card.value} / {card.comment}".rstrip(" / ")
+            )
+    hdr_str = "\n".join(hdr_lines)
+    hdr_str += "\n==== END OF FITS HEADER ===="
+    hdr_str += "\nLambda    Flux        Std"
+
+    np.savetxt(
+        path,
+        spec_array,
+        fmt="%10.3f %11.4e %11.4e",
+        header=hdr_str,
+    )
+
+
 def write_flux_file(
     reduction_dir: Path, spec1d_files: list[Path], sensfile: Path
 ) -> Path:
@@ -204,23 +231,7 @@ def unpack_spec1d_fits(
     spec_array = np.column_stack((wavelength, flux, std))
 
     if write_ascii_to is not None:
-        write_path = Path(write_ascii_to)
-        write_path.parent.mkdir(parents=True, exist_ok=True)
-        hdr_lines = []
-        for card in hdr.cards:
-            if card.keyword not in ("HISTORY", "COMMENT", ""):
-                hdr_lines.append(
-                    f"{card.keyword} = {card.value} / {card.comment}".rstrip(" / ")
-                )
-        hdr_str = "\n".join(hdr_lines)
-        hdr_str += "\n==== END OF FITS HEADER ===="
-        hdr_str += "\nLambda    Flux        Std"
-        np.savetxt(
-            write_path,
-            spec_array,
-            fmt="%10.3f %11.4e %11.4e",
-            header=hdr_str,
-        )
+        write_spectrum_ascii(Path(write_ascii_to), spec_array, hdr)
 
     return spec_array, hdr
 
@@ -230,6 +241,7 @@ def stack_spectra(
     bin_size: float = 5.0,
     norm_lim_low: float = 1000.0,
     norm_lim_upp: float = 25000.0,
+    hdr: fits.header.Header = fits.header.Header(),
     write_ascii_to: Path | None = None,
 ) -> np.ndarray:
     if not spec_arrays:
@@ -327,20 +339,12 @@ def stack_spectra(
     flux_new *= anchor_scale
     std_new *= anchor_scale
 
-    stacked = np.vstack([lam_new, flux_new, std_new]).T
+    stacked_array = np.vstack([lam_new, flux_new, std_new]).T
 
     if write_ascii_to is not None:
-        write_path = Path(write_ascii_to)
-        write_path.parent.mkdir(parents=True, exist_ok=True)
-        np.savetxt(
-            str(write_path),
-            stacked,
-            fmt="%10.3f %11.4e %11.4e",
-            delimiter="\t",
-            header="Lambda    Flux        Std",
-        )
+        write_spectrum_ascii(Path(write_ascii_to), stacked_array, hdr)
 
-    return stacked
+    return stacked_array
 
 
 def run_command(

@@ -20,6 +20,12 @@ pip install git+https://github.com/Lyalpha/pypeit-wrapit.git
 
 ## Command Line Interface (CLI)
 
+> **Important**: `pypeit-wrapit` currently supports processing **only one instrumental setup at a time**.
+> All input files in a single run must correspond to the same observational setup (e.g. same disperser/grism).
+> Multiple targets in this single observational set-up can be processed in the same run, and any targets
+> with multiple input spectra, will have their spectra stacked.
+
+
 ### Usage
 
 The main CLI entry point is:
@@ -49,10 +55,12 @@ pypeit-wrapit lt-sprat INPUT_FILES OUTPUT_DIR [OPTIONS]
   or
   - A glob pattern (shell-expanded)
   This should include the science frames and any necessary calibration frames (e.g. arcs)
-  for **a single target and observational setup**.
+  for **a observational setup**.
 
 - **OUTPUT_DIR**
   Output directory for intermediate and final reduced products.
+
+
 
 ---
 

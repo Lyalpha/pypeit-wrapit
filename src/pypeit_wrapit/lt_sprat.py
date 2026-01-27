@@ -7,6 +7,7 @@ import shutil
 from astropy.io import fits
 from astropy.time import Time
 from loguru import logger
+import numpy as np
 
 from pypeit_wrapit.common import (
     get_dispname,
@@ -43,6 +44,10 @@ def run_object(
     input_paths = [Path(fp).absolute() for fp in input_files]
     for input_path in input_paths:
         if not input_path.is_file():
+            if input_path.is_dir():
+                raise IsADirectoryError(
+                    f"Expected file(s) to process as input, but got a directory: {input_path}"
+                )
             raise FileNotFoundError(f"Input file not found: {input_path}")
     output_dir_path = Path(output_dir).absolute()
 
@@ -55,8 +60,8 @@ def run_object(
     pypeit_dir_path = output_dir_path / "pypeit_products"
     final_dir_path = output_dir_path / "final"
 
-    for path_ in (raw_dir_path, pypeit_dir_path, final_dir_path):
-        path_.mkdir(parents=True, exist_ok=True)
+    for dir_path in (raw_dir_path, pypeit_dir_path, final_dir_path):
+        dir_path.mkdir(parents=True, exist_ok=True)
 
     # Copy the raw files to the raw_directory
     for input_path in input_paths:
@@ -103,7 +108,7 @@ def run_object(
         except KeyError:
             raise KeyError(
                 f"No valid file mapping available for dispname='{dispname}'. Allowed values"
-                f"are {list(SENSITIVITY_FILE_MAPPING.keys())}"
+                f" are {list(SENSITIVITY_FILE_MAPPING.keys())}"
             )
         sensitivity_file_path = resource_path(sensitivity_filename)
         logger.debug(f"Using sensitivity file: {sensitivity_file_path}")
@@ -128,58 +133,80 @@ def run_object(
         cwd=pypeit_dir_path,
     )
 
-    multiple_spectra = len(spec1d_file_paths) > 1
-    qualifier = "individual_" if multiple_spectra else ""
-    target = get_target_name(
-        spec1d_file_paths[0]
-    )  # target should be same for all spectra!
-    logger.info(f"Identified target name as: {target}")
-    date_obs_vals = []
-    spec1d_arrays = []
-    stacked_hdr: fits.header.Header | None = None
-    logger.info("Unpacking flux-calibrated spectra and writing to final ASCII files.")
+    spec1d_filepaths_target_mapping: dict[str, list[Path]] = {}
     for spec1d_file_path in spec1d_file_paths:
-        date_obs = get_observation_date(spec1d_file_path)
-        date_obs_vals.append(date_obs)
-        date_obs_str = date_obs.strftime("%Y-%m-%dT%H:%M")
-        write_filename = f"{qualifier}{target}_LTSPRAT_{dispname}_{date_obs_str}.dat"
-        write_path = final_dir_path / write_filename
-        spec1d_array, spec1d_hdr = unpack_spec1d_fits(
-            spec1d_file=spec1d_file_path,
-            lam_lim_low=lam_lim_low,
-            lam_lim_upp=lam_lim_upp,
-            write_ascii_to=write_path,
-        )
-        logger.info(f"Wrote flux-calibrated spectrum to: {write_path}")
-        if multiple_spectra:
-            spec1d_arrays.append(spec1d_array)
-            if stacked_hdr is None:
-                stacked_hdr = spec1d_hdr
-
-    if multiple_spectra:
-        logger.info("Multiple spectra detected: performing stacking routine")
-        mean_ts = sum(dt.timestamp() for dt in date_obs_vals) / len(date_obs_vals)
-        mean_date = datetime.fromtimestamp(mean_ts)
-        mean_date_str = mean_date.strftime("%Y-%m-%dT%H:%M")
-        assert stacked_hdr is not None  # assist type checking
-        stacked_hdr["DATE-OBS"] = mean_date.isoformat()
-        stacked_hdr["MJD"] = Time(mean_date).mjd
-
-        stacked_write_path = (
-            final_dir_path / f"{target}_LTSPRAT_{dispname}_{mean_date_str}.dat"
+        target_name = get_target_name(spec1d_file_path)
+        spec1d_filepaths_target_mapping.setdefault(target_name, []).append(
+            spec1d_file_path
         )
 
-        stacked_spectrum = stack_spectra(
-            spec_arrays=spec1d_arrays,
-            bin_size=stacked_bin_size,
-            write_ascii_to=stacked_write_path,
+    for target_name, paths_for_target in spec1d_filepaths_target_mapping.items():
+        n_spec = len(paths_for_target)
+        logger.info(
+            f"Unpacking flux-calibrated spectra ({n_spec}) for {target_name} and writing final ASCII file(s)."
         )
-        lam_low = stacked_spectrum[0, 0]
-        lam_upp = stacked_spectrum[-1, 0]
-        logger.debug(
-            f"Stacked spectrum wavelength range: {lam_low:.1f} - {lam_upp:.1f} Å"
-        )
-        logger.info(f"Wrote stacked spectrum to: {stacked_write_path}")
+        do_stacking = n_spec > 1
+        qualifier = "individual_" if do_stacking else ""
+
+        date_obs_vals: list[datetime] = []
+        spec1d_arrays: list[np.ndarray] = []
+        stacked_hdr: fits.header.Header | None = None
+
+        # Write individual spectra and optionally collect data for stacking
+        for spec1d_file_path in paths_for_target:
+            date_obs = get_observation_date(spec1d_file_path)
+            date_obs_str = date_obs.strftime("%Y-%m-%dT%H:%M")
+
+            write_filename = (
+                f"{qualifier}{target_name}_LTSPRAT_{dispname}_{date_obs_str}.dat"
+            )
+            write_path = final_dir_path / write_filename
+
+            spec1d_array, spec1d_hdr = unpack_spec1d_fits(
+                spec1d_file=spec1d_file_path,
+                lam_lim_low=lam_lim_low,
+                lam_lim_upp=lam_lim_upp,
+                write_ascii_to=write_path,
+            )
+            logger.debug(f"Wrote flux-calibrated spectrum to: {write_path}")
+
+            if do_stacking:
+                date_obs_vals.append(date_obs)
+                spec1d_arrays.append(spec1d_array)
+                if stacked_hdr is None:
+                    stacked_hdr = spec1d_hdr
+
+        # Stack spectra if applicable
+        if do_stacking and spec1d_arrays and stacked_hdr is not None:
+            logger.info(f"Stacking individual spectra for target {target_name}")
+
+            mean_timestamp = sum(dt.timestamp() for dt in date_obs_vals) / len(
+                date_obs_vals
+            )
+            mean_date = datetime.fromtimestamp(mean_timestamp)
+            mean_date_str = mean_date.strftime("%Y-%m-%dT%H:%M")
+
+            stacked_hdr["DATE-OBS"] = mean_date.isoformat()
+            stacked_hdr["MJD"] = Time(mean_date).mjd
+
+            stacked_write_path = (
+                final_dir_path / f"{target_name}_LTSPRAT_{dispname}_{mean_date_str}.dat"
+            )
+
+            stacked_spectrum = stack_spectra(
+                spec_arrays=spec1d_arrays,
+                bin_size=stacked_bin_size,
+                hdr=stacked_hdr,
+                write_ascii_to=stacked_write_path,
+            )
+            lam_low = stacked_spectrum[0, 0]
+            lam_upp = stacked_spectrum[-1, 0]
+            logger.debug(
+                f"Stacked spectrum wavelength range: {lam_low:.1f} - {lam_upp:.1f} Å"
+            )
+            logger.debug(
+                f"Wrote stacked flux-calibrated spectrum to: {stacked_write_path}"
+            )
 
     if cleanup:
         logger.info("Cleaning up intermediate directories.")
