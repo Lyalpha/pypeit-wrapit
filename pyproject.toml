@@ -1,6 +1,6 @@
 [project]
 name = "pypeit-wrapit"
-version = "0.1.2"
+version = "0.2.0"
 description = "Wraps PypeIt for easier use in pipelines"
 readme = "README.md"
 requires-python = ">=3.12"
